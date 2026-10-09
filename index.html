@@ -44,9 +44,15 @@
             <h2 class="text-sm font-bold text-amber-200 uppercase tracking-widest text-center">対局ルームの作成・参加</h2>
             
             <div class="space-y-6">
+                <!-- 自分の名前入力 -->
+                <div class="space-y-2 bg-amber-950/50 p-4 rounded-2xl border border-amber-800">
+                    <label class="text-[10px] font-bold text-amber-300 uppercase">あなたのお名前（プレイヤー名）</label>
+                    <input type="text" id="myNameInput" placeholder="例: 太郎" maxlength="15" class="w-full bg-amber-950 border border-amber-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-amber-500/60 focus:outline-none focus:border-amber-500">
+                </div>
+
                 <!-- モード選択 & 部屋を作る -->
                 <div class="space-y-3 bg-amber-950/50 p-5 rounded-2xl border border-amber-800">
-                    <label class="text-[10px] font-bold text-amber-300 uppercase">① モードを選んで部屋を作る（あなたがホスト / プレイヤー1:黒）</label>
+                    <label class="text-[10px] font-bold text-amber-300 uppercase">① 部屋を作る（あなたがホスト）</label>
                     <div class="flex gap-4">
                         <label class="flex items-center gap-2 text-xs font-bold text-white cursor-pointer">
                             <input type="radio" name="gameMode" value="3" checked class="accent-amber-600"> 3人囲碁
@@ -72,17 +78,11 @@
 
                 <!-- 部屋に参加する -->
                 <div class="space-y-3 bg-amber-950/50 p-5 rounded-2xl border border-amber-800">
-                    <label class="text-[10px] font-bold text-amber-300 uppercase">② 部屋番号を入力して参加する</label>
-                    <input type="text" id="peerIdInput" placeholder="部屋番号..." maxlength="10" class="w-full bg-amber-950 border border-amber-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-amber-500/60 focus:outline-none focus:border-amber-500 font-mono">
-                    <div id="joinButtonsContainer" class="grid grid-cols-3 gap-2">
-                        <button onclick="joinRoom(1)" class="bg-slate-200 hover:bg-white text-slate-900 font-bold text-xs py-3 rounded-xl shadow transition">
-                            参加 (P2:白)
-                        </button>
-                        <button onclick="joinRoom(2)" class="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-3 rounded-xl shadow transition">
-                            参加 (P3:赤)
-                        </button>
-                        <button id="p4JoinBtn" onclick="joinRoom(3)" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl shadow transition">
-                            参加 (P4:緑)
+                    <label class="text-[10px] font-bold text-amber-300 uppercase">② 部屋番号を入力して参加する（色と順番は自動割り当て！）</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="peerIdInput" placeholder="部屋番号..." maxlength="10" class="flex-1 bg-amber-950 border border-amber-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-amber-500/60 focus:outline-none focus:border-amber-500 font-mono">
+                        <button onclick="joinRoom()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow transition whitespace-nowrap">
+                            部屋に参加する
                         </button>
                     </div>
                 </div>
@@ -98,9 +98,14 @@
                     <p id="turnText" class="text-sm font-black text-white">黒番のターン</p>
                 </div>
             </div>
-            <button onclick="sendPass()" class="bg-amber-800 hover:bg-amber-700 text-amber-100 text-xs font-bold px-5 py-2.5 rounded-xl border border-amber-700 transition">
-                パス
-            </button>
+            <div class="flex gap-2">
+                <button onclick="sendPass()" class="bg-amber-800 hover:bg-amber-700 text-amber-100 text-xs font-bold px-4 py-2.5 rounded-xl border border-amber-700 transition">
+                    パス
+                </button>
+                <button onclick="declareWin()" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-black text-xs px-4 py-2.5 rounded-xl shadow transition">
+                    勝利宣言！
+                </button>
+            </div>
         </div>
 
         <!-- 碁盤（9路盤・広め） -->
@@ -110,16 +115,26 @@
             </div>
         </div>
 
+        <!-- 勝利アナウンス表示用モーダル（非表示初期状態） -->
+        <div id="winModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-amber-900 border-2 border-amber-500 rounded-3xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl animate-bounce-short">
+                <div class="text-4xl">🎉</div>
+                <h3 id="winnerText" class="text-2xl font-black text-amber-100">〇〇さんの勝利！！！</h3>
+                <p class="text-xs text-amber-300">お見事な布石と陣取りでした！</p>
+                <button onclick="location.reload()" class="w-full bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm py-3 rounded-xl shadow transition">
+                    もう一度対局する
+                </button>
+            </div>
+        </div>
+
         <!-- X（Twitter）シェア & 作者リンクエリア -->
         <div class="bg-amber-900/60 border border-amber-800/80 rounded-2xl p-6 w-full max-w-lg text-center space-y-4 shadow-lg">
             <p class="text-xs font-bold text-amber-200">マルチプレイの戦いをみんなにシェアしよう！</p>
             <div class="flex flex-col sm:flex-row gap-3">
-                <!-- Xでシェアボタン -->
                 <a id="twitterShareBtn" href="#" target="_blank" class="flex-1 inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs px-5 py-3 rounded-xl shadow transition border border-slate-700">
                     <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                     Xで募集・シェア
                 </a>
-                <!-- 作者のXアカウントへのリンクボタン -->
                 <a href="https://x.com/1qcc5v" target="_blank" class="inline-flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-5 py-3 rounded-xl shadow transition border border-sky-500">
                     <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                     作者をフォロー (@1qcc5v)
@@ -140,13 +155,18 @@
         const BOARD_SIZE = 9;
         let boardState = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
         let currentTurn = 0; 
-        let totalPlayers = 3; // 3 or 4
+        let totalPlayers = 3;
         
         let peer = null;
         let hostPeer = null;
-        let connections = [];
-        let myPlayerId = null;
+        let connections = []; // ホスト側が持つゲストとのコネクション一覧
+        let myPlayerId = null; // 0:黒, 1:白, 2:赤, 3:緑
         let isHost = false;
+        let myName = "名無し";
+        
+        // 参加者の名前リスト [ホスト名, ゲスト1, ゲスト2, ゲスト3]
+        let playerNames = ["プレイヤー1", "プレイヤー2", "プレイヤー3", "プレイヤー4"];
+        const stoneColors = ["黒", "白", "赤", "緑"];
 
         const ID_PREFIX = "uketama-multiigo-";
         const boardEl = document.getElementById('board');
@@ -156,8 +176,6 @@
         const roomPanel = document.getElementById('roomPanel');
         const gameUI = document.getElementById('gameUI');
         const myRoleEl = document.getElementById('myRole');
-
-        const playerNames = ["プレイヤー1 (黒)", "プレイヤー2 (白)", "プレイヤー3 (赤)", "プレイヤー4 (緑)"];
 
         function updateTwitterShareLink(roomId = "") {
             const text = encodeURIComponent(`${totalPlayers}人で遊ぶカオスな多人数囲碁対戦ゲーム！一緒に陣取りしよう！\n` + (roomId ? `【部屋番号: ${roomId} (${totalPlayers}人モード)】\n` : ""));
@@ -194,9 +212,14 @@
             renderBoard();
         }
 
+        // 部屋を作成（ホスト = P0:黒）
         function createRoom() {
             const userInput = document.getElementById('customRoomIdInput').value.trim();
             if (!userInput) { alert('部屋番号を入力してください。'); return; }
+
+            const nameInput = document.getElementById('myNameInput').value.trim();
+            if (nameInput) myName = nameInput;
+            playerNames[0] = myName;
 
             const modeRadios = document.getElementsByName('gameMode');
             for (let r of modeRadios) {
@@ -206,79 +229,110 @@
             const fullId = ID_PREFIX + userInput;
             isHost = true;
             myPlayerId = 0;
-            myRoleEl.textContent = playerNames[0];
+            myRoleEl.textContent = `${myName} (${stoneColors[0]})`;
 
             updateTwitterShareLink(userInput);
 
             peer = new Peer(fullId);
 
             peer.on('open', () => {
-                connectionStatus.textContent = `待機中（P1黒・あと${totalPlayers - 1}人待ち...）`;
+                connectionStatus.textContent = `待機中（ホスト・あと${totalPlayers - 1}人待ち...）`;
                 connectionStatus.className = "text-xs font-bold text-amber-300 bg-amber-950/80 px-3 py-1.5 rounded-lg border border-amber-700";
                 document.getElementById('waitMsg').classList.remove('hidden');
                 document.getElementById('customRoomIdInput').disabled = true;
+                document.getElementById('myNameInput').disabled = true;
                 for (let r of modeRadios) r.disabled = true;
             });
 
             peer.on('connection', (conn) => {
                 connections.push(conn);
-                
+                const assignedId = connections.length; // 1, 2, 3...
+
+                conn.on('open', () => {
+                    // 参加してきた人に自分の名前を教えてもらうのを待つ or 接続時にデータを送る
+                });
+
                 conn.on('data', (data) => {
-                    if (data.type === 'place') {
+                    if (data.type === 'join') {
+                        playerNames[assignedId] = data.name;
+                        // 全員に最新のプレイヤー名リストとゲーム状態を同期
+                        broadcast({ type: 'syncNames', names: playerNames });
+                        checkGameStart();
+                    } else if (data.type === 'place') {
                         boardState[data.r][data.c] = data.player;
                         currentTurn = (currentTurn + 1) % totalPlayers;
                         renderBoard();
                         updateTurnUI();
-                        broadcast({ type: 'sync', board: boardState, turn: currentTurn, mode: totalPlayers });
+                        broadcast({ type: 'sync', board: boardState, turn: currentTurn, mode: totalPlayers, names: playerNames });
                     } else if (data.type === 'pass') {
                         currentTurn = (currentTurn + 1) % totalPlayers;
                         updateTurnUI();
                         broadcast({ type: 'syncTurn', turn: currentTurn });
+                    } else if (data.type === 'win') {
+                        triggerWin(data.winnerName);
+                        broadcast({ type: 'win', winnerName: data.winnerName });
                     }
                 });
-
-                if (connections.length >= totalPlayers - 1) {
-                    connectionStatus.textContent = `${totalPlayers}人対局中（全員集合！）`;
-                    connectionStatus.className = "text-xs font-bold text-emerald-300 bg-emerald-950/80 px-3 py-1.5 rounded-lg border border-emerald-800";
-                    roomPanel.classList.add('hidden');
-                    gameUI.classList.remove('hidden');
-                    broadcast({ type: 'start', board: boardState, turn: currentTurn, mode: totalPlayers });
-                }
             });
         }
 
-        function joinRoom(pId) {
+        // ホスト側で全員揃ったかチェックしてスタート
+        function checkGameStart() {
+            if (connections.length >= totalPlayers - 1) {
+                connectionStatus.textContent = `${totalPlayers}人対局中（全員集合！）`;
+                connectionStatus.className = "text-xs font-bold text-emerald-300 bg-emerald-950/80 px-3 py-1.5 rounded-lg border border-emerald-800";
+                roomPanel.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                broadcast({ type: 'start', board: boardState, turn: currentTurn, mode: totalPlayers, names: playerNames });
+            }
+        }
+
+        // 部屋に参加する（自動で空いているIDに割り当て）
+        function joinRoom() {
             const userInput = document.getElementById('peerIdInput').value.trim();
             if (!userInput) { alert('部屋番号を入力してください。'); return; }
 
+            const nameInput = document.getElementById('myNameInput').value.trim();
+            if (nameInput) myName = nameInput;
+
             const hostId = ID_PREFIX + userInput;
-            myPlayerId = pId;
-            myRoleEl.textContent = playerNames[pId];
-
-            updateTwitterShareLink(userInput);
-
             peer = new Peer();
 
             peer.on('open', () => {
                 hostPeer = peer.connect(hostId);
 
                 hostPeer.on('open', () => {
+                    // 参加時に自分の名前をホストに送信
+                    hostPeer.send({ type: 'join', name: myName });
                     connectionStatus.textContent = '対局ルームに接続しました！';
                     connectionStatus.className = "text-xs font-bold text-emerald-300 bg-emerald-950/80 px-3 py-1.5 rounded-lg border border-emerald-800";
-                    roomPanel.classList.add('hidden');
-                    gameUI.classList.remove('hidden');
                 });
 
                 hostPeer.on('data', (data) => {
-                    if (data.type === 'sync' || data.type === 'start') {
+                    if (data.type === 'syncNames') {
+                        playerNames = data.names;
+                    } else if (data.type === 'sync' || data.type === 'start') {
                         boardState = data.board;
                         currentTurn = data.turn;
                         if (data.mode) totalPlayers = data.mode;
+                        if (data.names) playerNames = data.names;
+                        
+                        // 自分のプレイヤーIDを特定（自分の名前が一致するインデックス）
+                        for(let i=0; i<playerNames.length; i++) {
+                            if(playerNames[i] === myName) myPlayerId = i;
+                        }
+                        if(myPlayerId === null) myPlayerId = 1; // フォールバック
+
+                        myRoleEl.textContent = `${myName} (${stoneColors[myPlayerId]})`;
+                        roomPanel.classList.add('hidden');
+                        gameUI.classList.remove('hidden');
                         renderBoard();
                         updateTurnUI();
                     } else if (data.type === 'syncTurn') {
                         currentTurn = data.turn;
                         updateTurnUI();
+                    } else if (data.type === 'win') {
+                        triggerWin(data.winnerName);
                     }
                 });
 
@@ -297,7 +351,7 @@
 
         function handleCellClick(r, c) {
             if (currentTurn !== myPlayerId) {
-                alert(`今は ${playerNames[currentTurn]} のターンです！`);
+                alert(`今は ${playerNames[currentTurn]} さん (${stoneColors[currentTurn]}) のターンです！`);
                 return;
             }
             if (boardState[r][c] !== null) return;
@@ -308,7 +362,7 @@
             updateTurnUI();
 
             if (isHost) {
-                broadcast({ type: 'sync', board: boardState, turn: currentTurn, mode: totalPlayers });
+                broadcast({ type: 'sync', board: boardState, turn: currentTurn, mode: totalPlayers, names: playerNames });
             } else {
                 hostPeer.send({ type: 'place', r: r, c: c, player: myPlayerId });
             }
@@ -324,6 +378,22 @@
             } else {
                 hostPeer.send({ type: 'pass' });
             }
+        }
+
+        // 勝利宣言ボタン
+        function declareWin() {
+            if (!confirm(`${myName}さんの勝利として決着をつけますか？`)) return;
+            triggerWin(myName);
+            if (isHost) {
+                broadcast({ type: 'win', winnerName: myName });
+            } else {
+                hostPeer.send({ type: 'win', winnerName: myName });
+            }
+        }
+
+        function triggerWin(winnerName) {
+            document.getElementById('winnerText').textContent = `${winnerName} さんの勝利！！！`;
+            document.getElementById('winModal').classList.remove('hidden');
         }
 
         function renderBoard() {
@@ -356,7 +426,9 @@
         }
 
         function updateTurnUI() {
-            turnText.textContent = `${playerNames[currentTurn]} のターン`;
+            const activeName = playerNames[currentTurn] || `プレイヤー${currentTurn+1}`;
+            turnText.textContent = `${activeName} (${stoneColors[currentTurn]}) のターン`;
+            
             if (currentTurn === 0) {
                 turnIndicator.className = "w-10 h-10 rounded-full bg-slate-950 border-2 border-slate-700 shadow-md flex items-center justify-center text-xs font-bold text-white";
                 turnIndicator.textContent = "黒";
