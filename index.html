@@ -162,7 +162,7 @@
 
     <!-- スクリプト -->
     <script>
-        const BOARD_SIZE = 13; // 13路盤に拡大
+        const BOARD_SIZE = 13;
         let boardState = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
         let currentTurn = 0; 
         let totalPlayers = 3;
@@ -202,8 +202,6 @@
 
         function initBoard() {
             boardEl.innerHTML = '';
-            boardEl.className = `relative w-[480px] h-[480px] sm:w-[540px] sm:h-[540px] grid grid-cols-${BOARD_SIZE-1} grid-rows-${BOARD_SIZE-1}`;
-            // 13路盤のグリッドは 12分割 (grid-cols-12)
             boardEl.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, minmax(0, 1fr))`;
             boardEl.style.gridTemplateRows = `repeat(${BOARD_SIZE}, minmax(0, 1fr))`;
 
@@ -256,7 +254,7 @@
             const remaining = totalPlayers - connectedCount;
             lobbyTitle.textContent = `👥 参加メンバー (${connectedCount}/${totalPlayers}人 接続中)`;
             if (remaining > 0) {
-                waitNotice.textContent = `⏳ あと ${remaining} 人の参加を待っています...`;
+                waitNotice.textContent = `⏳ ああと ${remaining} 人の参加を待っています...`;
             } else {
                 waitNotice.textContent = `✨ 全員揃いました！まもなく始まります！`;
             }
@@ -312,9 +310,12 @@
                         if (!gameStarted) return;
                         boardState[data.r][data.c] = data.player;
                         
+                        // ゲストが置いた結果、勝利判定になった場合
                         if (checkWin(data.r, data.c, data.player)) {
-                            triggerWin(playerNames[data.player]);
-                            broadcast({ type: 'win', winnerName: playerNames[data.player], board: boardState });
+                            const winnerName = playerNames[data.player];
+                            renderBoard();
+                            triggerWin(winnerName);
+                            broadcast({ type: 'win', winnerName: winnerName, board: boardState });
                             return;
                         }
 
@@ -322,6 +323,11 @@
                         renderBoard();
                         updateTurnUI();
                         broadcast({ type: 'sync', board: boardState, turn: currentTurn, mode: totalPlayers, names: playerNames });
+                    } else if (data.type === 'win') {
+                        // 念のためゲスト側から勝利通知が来た場合
+                        boardState = data.board;
+                        renderBoard();
+                        triggerWin(data.winnerName);
                     }
                 });
             });
@@ -417,14 +423,12 @@
 
             for (let {dr, dc} of directions) {
                 let count = 1;
-                // 正方向
                 for (let i = 1; i < 4; i++) {
                     let nr = r + dr * i, nc = c + dc * i;
                     if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && boardState[nr][nc] === player) {
                         count++;
                     } else { break; }
                 }
-                // 逆方向
                 for (let i = 1; i < 4; i++) {
                     let nr = r - dr * i, nc = c - dc * i;
                     if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && boardState[nr][nc] === player) {
@@ -454,6 +458,7 @@
 
             boardState[r][c] = myPlayerId;
 
+            // ホスト（または自分が）置いたとき、勝利判定が成立したら即座に自分の画面でもモーダルを出す
             if (checkWin(r, c, myPlayerId)) {
                 renderBoard();
                 triggerWin(myName);
