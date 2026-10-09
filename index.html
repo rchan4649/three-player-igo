@@ -36,7 +36,7 @@
         </div>
     </header>
 
-    <!-- メインコンテンツ（1.5倍広めのレイアウト） -->
+    <!-- メインコンテンツ -->
     <main class="max-w-6xl mx-auto w-full px-6 py-12 flex flex-col items-center space-y-10">
         
         <!-- ルーム接続パネル -->
@@ -71,7 +71,7 @@
 
                 <!-- 待機中の参加者一覧表示（ホスト画面用） -->
                 <div id="lobbyMemberList" class="hidden space-y-3 bg-amber-950/80 p-6 rounded-2xl border border-amber-700">
-                    <p class="text-xs text-amber-300 font-bold uppercase">👥 参加メンバー確認中（全員揃うとスタートします）</p>
+                    <p id="lobbyTitle" class="text-xs text-amber-300 font-bold uppercase">👥 参加メンバー確認中（全員揃うとスタートします）</p>
                     <ul id="lobbyNamesUl" class="text-sm space-y-1.5 font-bold text-white">
                         <!-- 動的に追加 -->
                     </ul>
@@ -163,7 +163,7 @@
         let myPlayerId = null; 
         let isHost = false;
         let myName = "名無し";
-        let gameStarted = false; // 人数が揃うまで石を置けないようにするフラグ
+        let gameStarted = false; // 全員揃うまで石を置けないようにするフラグ
         
         let playerNames = ["未接続", "未接続", "未接続", "未接続"];
         const stoneColors = ["黒", "白", "赤", "緑"];
@@ -178,6 +178,7 @@
         const myRoleEl = document.getElementById('myRole');
         const lobbyMemberList = document.getElementById('lobbyMemberList');
         const lobbyNamesUl = document.getElementById('lobbyNamesUl');
+        const lobbyTitle = document.getElementById('lobbyTitle');
         const activePlayerList = document.getElementById('activePlayerList');
 
         function updateTwitterShareLink(roomId = "") {
@@ -218,9 +219,15 @@
         function updatePlayerListUI() {
             let lobbyHtml = "";
             let activeHtml = "";
+            let connectedCount = 0;
+
             for(let i=0; i<totalPlayers; i++) {
-                const name = playerNames[i] || "待機中...";
-                lobbyHtml += `<li>・P${i+1} (${stoneColors[i]}): <span class="text-amber-200">${name}</span></li>`;
+                const name = playerNames[i];
+                const isConnected = (name !== "待機中...");
+                if (isConnected) connectedCount++;
+
+                lobbyHtml += `<li>・P${i+1} (${stoneColors[i]}): <span class="${isConnected ? 'text-amber-200 font-bold' : 'text-amber-500/60'}">${name}</span></li>`;
+                
                 activeHtml += `<div class="bg-amber-900/60 p-2.5 rounded-xl border border-amber-700/60 flex items-center gap-2.5">
                     <span class="w-4 h-4 rounded-full inline-block ${i===0?'bg-slate-900 border border-slate-600':i===1?'bg-white border border-slate-300':i===2?'bg-rose-500':'bg-emerald-500'}"></span>
                     <span class="truncate">P${i+1} (${stoneColors[i]}): <b>${name}</b></span>
@@ -228,6 +235,7 @@
             }
             lobbyNamesUl.innerHTML = lobbyHtml;
             activePlayerList.innerHTML = activeHtml;
+            lobbyTitle.textContent = `👥 参加メンバー (${connectedCount}/${totalPlayers}人 接続中)`;
         }
 
         function createRoom() {
@@ -255,7 +263,7 @@
             peer = new Peer(fullId);
 
             peer.on('open', () => {
-                connectionStatus.textContent = `待機中（ホスト・あと${totalPlayers - 1}人待ち...）`;
+                connectionStatus.textContent = `待機中（ホスト・あと${totalPlayers - 1}人待ち）`;
                 connectionStatus.className = "text-xs font-bold text-amber-300 bg-amber-950/80 px-4 py-2 rounded-xl border border-amber-700";
                 lobbyMemberList.classList.remove('hidden');
                 document.getElementById('customRoomIdInput').disabled = true;
@@ -266,7 +274,7 @@
 
             peer.on('connection', (conn) => {
                 connections.push(conn);
-                const assignedId = connections.length;
+                const assignedId = connections.length; // 1, 2, 3...
 
                 conn.on('data', (data) => {
                     if (data.type === 'join') {
@@ -274,6 +282,7 @@
                             playerNames[assignedId] = data.name;
                         }
                         updatePlayerListUI();
+                        // ゲスト全員に現在の名前リストと接続人数を同期
                         broadcast({ type: 'syncNames', names: playerNames });
                         checkGameStart();
                     } else if (data.type === 'place') {
@@ -293,9 +302,11 @@
             });
         }
 
+        // 厳密に「必要な人数（totalPlayers）が全員揃ったか」をチェックする
         function checkGameStart() {
+            // ホスト(1人) ＋ connectionsの数 が totalPlayers に達したか
             if (connections.length >= totalPlayers - 1) {
-                gameStarted = true; // 人数が揃ったので石が置けるようになる
+                gameStarted = true;
                 connectionStatus.textContent = `${totalPlayers}人対局中（ゲーム開始！）`;
                 connectionStatus.className = "text-xs font-bold text-emerald-300 bg-emerald-950/80 px-4 py-2 rounded-xl border border-emerald-800";
                 roomPanel.classList.add('hidden');
@@ -320,7 +331,7 @@
 
                 hostPeer.on('open', () => {
                     hostPeer.send({ type: 'join', name: myName });
-                    connectionStatus.textContent = '対局ルームに接続しました（メンバー待ち...）';
+                    connectionStatus.textContent = '対局ルームに接続しました（人数が揃うまで待機中...）';
                     connectionStatus.className = "text-xs font-bold text-amber-300 bg-amber-950/80 px-4 py-2 rounded-xl border border-amber-700";
                 });
 
@@ -329,7 +340,7 @@
                         playerNames = data.names;
                         updatePlayerListUI();
                     } else if (data.type === 'sync' || data.type === 'start') {
-                        gameStarted = true; // ゲーム開始
+                        gameStarted = true;
                         boardState = data.board;
                         currentTurn = data.turn;
                         if (data.mode) totalPlayers = data.mode;
@@ -369,7 +380,7 @@
 
         function handleCellClick(r, c) {
             if (!gameStarted) {
-                alert('まだ全員のメンバーが揃っていません！');
+                alert('まだ必要な人数が揃っていません！全員揃うまでお待ちください。');
                 return;
             }
             if (currentTurn !== myPlayerId) {
