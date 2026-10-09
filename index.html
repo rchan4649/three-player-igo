@@ -232,7 +232,7 @@
 
             for(let i=0; i<totalPlayers; i++) {
                 const name = playerNames[i];
-                const isConnected = (name !== "待機中...");
+                const isConnected = (name && name !== "未接続" && name !== "待機中...");
                 if (isConnected) connectedCount++;
 
                 lobbyHtml += `<li class="flex items-center justify-between bg-amber-950/60 px-3 py-2 rounded-xl border border-amber-800/80">
@@ -240,12 +240,12 @@
                         <span class="w-3 h-3 rounded-full inline-block ${i===0?'bg-slate-900 border border-slate-600':i===1?'bg-white border border-slate-300':i===2?'bg-rose-500':'bg-emerald-500'}"></span>
                         <b>P${i+1} (${stoneColors[i]})</b>
                     </span>
-                    <span class="${isConnected ? 'text-amber-200 font-bold' : 'text-amber-500/60 italic'}">${name}</span>
+                    <span class="${isConnected ? 'text-amber-200 font-bold' : 'text-amber-500/60 italic'}">${isConnected ? name : '待機中...'}</span>
                 </li>`;
                 
                 activeHtml += `<div class="bg-amber-900/60 p-2.5 rounded-xl border border-amber-700/60 flex items-center gap-2.5">
                     <span class="w-4 h-4 rounded-full inline-block ${i===0?'bg-slate-900 border border-slate-600':i===1?'bg-white border border-slate-300':i===2?'bg-rose-500':'bg-emerald-500'}"></span>
-                    <span class="truncate">P${i+1} (${stoneColors[i]}): <b>${name}</b></span>
+                    <span class="truncate">P${i+1} (${stoneColors[i]}): <b>${isConnected ? name : '待機中...'}</b></span>
                 </div>`;
             }
             lobbyNamesUl.innerHTML = lobbyHtml;
@@ -254,7 +254,7 @@
             const remaining = totalPlayers - connectedCount;
             lobbyTitle.textContent = `👥 参加メンバー (${connectedCount}/${totalPlayers}人 接続中)`;
             if (remaining > 0) {
-                waitNotice.textContent = `⏳ ああと ${remaining} 人の参加を待っています...`;
+                waitNotice.textContent = `⏳ あと ${remaining} 人の参加を待っています...`;
             } else {
                 waitNotice.textContent = `✨ 全員揃いました！まもなく始まります！`;
             }
@@ -272,6 +272,7 @@
                 if (r.checked) totalPlayers = parseInt(r.value);
             }
 
+            // ホスト自身をP0に確定
             playerNames = Array(totalPlayers).fill("待機中...");
             playerNames[0] = myName;
 
@@ -294,23 +295,32 @@
                 updatePlayerListUI();
             });
 
+            // ホスト側：ゲストが接続してきたときの処理を完全に整理・管理
             peer.on('connection', (conn) => {
-                connections.push(conn);
-                const assignedId = connections.length;
-
                 conn.on('data', (data) => {
                     if (data.type === 'join') {
-                        if (assignedId < totalPlayers) {
-                            playerNames[assignedId] = data.name;
+                        // 【ホストが一括管理】空いているインデックス（P1, P2, P3）を順番に確定して割り振る
+                        let assignedId = -1;
+                        for (let i = 1; i < totalPlayers; i++) {
+                            if (playerNames[i] === "待機中...") {
+                                assignedId = i;
+                                playerNames[i] = data.name;
+                                break;
+                            }
                         }
-                        updatePlayerListUI();
-                        broadcast({ type: 'syncLobby', names: playerNames, mode: totalPlayers });
-                        checkGameStart();
+
+                        if (assignedId !== -1) {
+                            // 割り当て結果を本人に返却しつつ、全員のリストを同期
+                            conn.send({ type: 'assigned', myId: assignedId, names: playerNames, mode: totalPlayers });
+                            broadcastLobby();
+                            checkGameStart();
+                        } else {
+                            conn.send({ type: 'full' }); // 満員の場合
+                        }
                     } else if (data.type === 'place') {
                         if (!gameStarted) return;
                         boardState[data.r][data.c] = data.player;
                         
-                        // ゲストが置いた結果、勝利判定になった場合
                         if (checkWin(data.r, data.c, data.player)) {
                             const winnerName = playerNames[data.player];
                             renderBoard();
@@ -324,7 +334,6 @@
                         updateTurnUI();
                         broadcast({ type: 'sync', board: boardState, turn: currentTurn, mode: totalPlayers, names: playerNames });
                     } else if (data.type === 'win') {
-                        // 念のためゲスト側から勝利通知が来た場合
                         boardState = data.board;
                         renderBoard();
                         triggerWin(data.winnerName);
@@ -333,8 +342,20 @@
             });
         }
 
+        // ホストが現在のロビー情報を全員に一斉配信
+        function broadcastLobby() {
+            updatePlayerListUI();
+            connections.forEach(conn => {
+                if (conn && conn.open) {
+                    conn.send({ type: 'syncLobby', names: playerNames, mode: totalPlayers });
+                }
+            });
+        }
+
         function checkGameStart() {
-            if (connections.length >= totalPlayers - 1) {
+            // 「待機中...」の人が一人もいなくなったら全員揃ったとみなす
+            const allJoined = !playerNames.slice(0, totalPlayers).includes("待機中...");
+            if (allJoined) {
                 gameStarted = true;
                 connectionStatus.textContent = `${totalPlayers}人対局中（4目並べ開始！）`;
                 connectionStatus.className = "text-xs font-bold text-emerald-300 bg-emerald-950/80 px-3 py-1.5 rounded-lg border border-emerald-800";
@@ -359,8 +380,9 @@
                 hostPeer = peer.connect(hostId);
 
                 hostPeer.on('open', () => {
+                    // ホストに参加希望と名前を送信し、IDの割り振りを待つ
                     hostPeer.send({ type: 'join', name: myName });
-                    connectionStatus.textContent = '対局ルームに接続しました（待機中...）';
+                    connectionStatus.textContent = '対局ルームに接続しました（ホストからの割り当て待ち...）';
                     connectionStatus.className = "text-xs font-bold text-amber-300 bg-amber-950/80 px-3 py-1.5 rounded-lg border border-amber-700";
                     lobbyMemberList.classList.remove('hidden');
                     document.getElementById('peerIdInput').disabled = true;
@@ -368,21 +390,30 @@
                 });
 
                 hostPeer.on('data', (data) => {
-                    if (data.type === 'syncLobby') {
+                    if (data.type === 'assigned') {
+                        // 【ホストから割り当てられた自分のIDを確実に受け取る】
+                        myPlayerId = data.myId;
+                        playerNames = data.names;
+                        if (data.mode) totalPlayers = data.mode;
+
+                        myRoleEl.textContent = `${myName} (${stoneColors[myPlayerId]})`;
+                        updatePlayerListUI();
+                        connectionStatus.textContent = `待機中（P${myPlayerId+1}:${stoneColors[myPlayerId]}として参加中）`;
+                    } else if (data.type === 'syncLobby') {
                         if (data.mode) totalPlayers = data.mode;
                         playerNames = data.names;
                         updatePlayerListUI();
-                    } else if (data.type === 'sync' || data.type === 'start') {
+                    } else if (data.type === 'start' || data.type === 'sync') {
                         gameStarted = true;
                         boardState = data.board;
                         currentTurn = data.turn;
                         if (data.mode) totalPlayers = data.mode;
                         if (data.names) playerNames = data.names;
-                        
+
+                        // 念のため自分自身のIDを名前から再確認
                         for(let i=0; i<playerNames.length; i++) {
                             if(playerNames[i] === myName) myPlayerId = i;
                         }
-                        if(myPlayerId === null) myPlayerId = 1;
 
                         myRoleEl.textContent = `${myName} (${stoneColors[myPlayerId]})`;
                         roomPanel.classList.add('hidden');
@@ -396,6 +427,9 @@
                         boardState = data.board;
                         renderBoard();
                         triggerWin(data.winnerName);
+                    } else if (data.type === 'full') {
+                        alert('この部屋はすでに満員です！');
+                        location.reload();
                     }
                 });
 
@@ -458,7 +492,6 @@
 
             boardState[r][c] = myPlayerId;
 
-            // ホスト（または自分が）置いたとき、勝利判定が成立したら即座に自分の画面でもモーダルを出す
             if (checkWin(r, c, myPlayerId)) {
                 renderBoard();
                 triggerWin(myName);
